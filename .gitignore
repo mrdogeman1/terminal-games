@@ -1,0 +1,9 @@
+# Engine-written typings (laid by Claude Code when it loads the mod)
+.claude-plugin/types/
+# Stockfish binary (GPLv3, ~100 MB, downloaded separately; see stockfish/README.md)
+stockfish/*.exe
+stockfish/*.zip
+node_modules/
+*.log
+.DS_Store
+Thumbs.db

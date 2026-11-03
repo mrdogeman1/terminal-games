@@ -1,5 +1,4 @@
 import type {
-  ChallengePayload,
   ChatMessageInfo,
   ClockState,
   Color,
@@ -8,15 +7,14 @@ import type {
   MatchCancelReason,
   MatchFoundPayload,
   MeResponse,
+  LobbyEntry,
   Offer,
-  QueueStatus,
-  Tier,
   UserRef,
 } from '../net/protocol'
 
 // The local mirror of the server's state for online play, built from
 // snapshots (GET /api/mod/games/:id, /me) and the event stream (PROTOCOL.md
-// 13-14). Pure: every function returns a new state. The server is the
+// 14-15). Pure: every function returns a new state. The server is the
 // authority; when the mirror cannot follow (a gap in plies, an unknown
 // game), the game id lands in `toFetch` and the controller fetches it.
 
@@ -42,9 +40,9 @@ export type OnlineGame = {
 export type OnlineState = {
   me: { userId: string; username: string; rating: number } | null
   games: Record<string, OnlineGame>
-  challenges: Record<string, ChallengePayload>
+  // Pending offers and challenges, sent and received, by id.
   offers: Record<string, Offer>
-  queue: QueueStatus | null
+  queue: LobbyEntry | null
   lastMatch: MatchFoundPayload | null
   lastQueueCancel: MatchCancelReason | null
   toFetch: string[]
@@ -59,7 +57,6 @@ const CHAT_KEEP = 50
 export const emptyOnline = (): OnlineState => ({
   me: null,
   games: {},
-  challenges: {},
   offers: {},
   queue: null,
   lastMatch: null,
@@ -71,8 +68,10 @@ export const emptyOnline = (): OnlineState => ({
   unread: {},
 })
 
-// Rating tier label (PROTOCOL.md 5; labels only in the open lobby).
-export const tierOf = (rating: number): Exclude<Tier, 'any'> =>
+export type TierLabel = 'beginner' | 'casual' | 'club' | 'expert'
+
+// Rating tier label (PROTOCOL.md 5: display only).
+export const tierOf = (rating: number): TierLabel =>
   rating < 1000 ? 'beginner' : rating < 1300 ? 'casual' : rating < 1600 ? 'club' : 'expert'
 
 const fetchLater = (s: OnlineState, gameId: string): OnlineState =>
@@ -103,11 +102,10 @@ const withAbilities = (g: GameState): GameState => {
     canAbort: isActive && isOnline && g.plyCount < 2,
     canOfferDraw: isActive && isOnline && g.drawOffer !== g.you,
     canAcceptDraw: isActive && isOnline && g.drawOffer !== null && g.drawOffer !== g.you,
-    canAcceptChallenge: false,
   }
 }
 
-// /me after login, a restart or a 410: queue entry and active games.
+// /me after login, a restart or a 410: lobby entry and active games.
 export const applyMe = (s: OnlineState, me: MeResponse): OnlineState => {
   let next: OnlineState = {
     ...s,
@@ -124,7 +122,7 @@ export const applyMe = (s: OnlineState, me: MeResponse): OnlineState => {
 export const applySnapshot = (s: OnlineState, game: GameState, now: number): OnlineState => {
   const local = s.games[game.id]
   if (local && game.eventSeq < local.seenSeq) return s
-  const serverTime = game.clock?.serverTime ?? null
+  const serverTime = game.serverTime ?? game.clock?.serverTime ?? null
   const games = {
     ...s.games,
     [game.id]: {
@@ -135,10 +133,7 @@ export const applySnapshot = (s: OnlineState, game: GameState, now: number): Onl
       pendingMove: null,
     },
   }
-  const challenges = { ...s.challenges }
-  if (game.status !== 'waiting') delete challenges[game.id]
-
-  return { ...s, games, challenges, toFetch: s.toFetch.filter(id => id !== game.id) }
+  return { ...s, games, toFetch: s.toFetch.filter(id => id !== game.id) }
 }
 
 // Our own move, shown at once; the POST's answer (applySnapshot) or the
@@ -167,8 +162,14 @@ const putGame = (s: OnlineState, id: string, game: OnlineGame): OnlineState => (
 
 const otherColor = (c: Color): Color => (c === 'white' ? 'black' : 'white')
 
-// One event. Unknown types are ignored (PROTOCOL.md 1).
-export function reduceEvent(s: OnlineState, ev: GameEventEnvelope | { type: string; seq: number }, now: number): OnlineState {
+// One event. Unknown types are ignored (PROTOCOL.md 1). `serverTime` is the
+// events response's, for per-move deadlines.
+export function reduceEvent(
+  s: OnlineState,
+  ev: GameEventEnvelope | { type: string; seq: number },
+  now: number,
+  serverTime: number | null = null,
+): OnlineState {
   const e = ev as GameEventEnvelope
   switch (e.type) {
     case 'game.move': {
@@ -194,27 +195,22 @@ export function reduceEvent(s: OnlineState, ev: GameEventEnvelope | { type: stri
         moves: [...g.moves, p.move],
         lastMove: { uci: p.move.uci, san: p.move.san },
         lastMoveAt: p.move.at,
-        moveDeadlineAt: p.moveDeadlineAt !== undefined ? p.moveDeadlineAt : g.moveDeadlineAt,
+        moveDeadlineAt: p.moveDeadlineAt ?? null,
       })
 
       return putGame(s, p.gameId, {
         state,
         seenSeq: e.seq,
         clockAt: p.clock ? now : local.clockAt,
-        moveDeadline:
-          p.moveDeadlineAt !== undefined
-            ? deadlineOf(p.moveDeadlineAt, p.clock?.serverTime ?? null, now)
-            : local.moveDeadline,
+        moveDeadline: deadlineOf(p.moveDeadlineAt, p.clock?.serverTime ?? serverTime, now),
         pendingMove: local.pendingMove === p.move.uci ? null : local.pendingMove,
       })
     }
     case 'game.over': {
       const p = (e as GameEventEnvelope<'game.over'>).payload
-      const challenges = { ...s.challenges }
-      delete challenges[p.gameId]
       const local = s.games[p.gameId]
-      if (!local) return fetchLater({ ...s, challenges }, p.gameId)
-      if (e.seq <= local.seenSeq) return { ...s, challenges }
+      if (!local) return fetchLater(s, p.gameId)
+      if (e.seq <= local.seenSeq) return s
       const g = local.state
       const state: GameState = {
         ...g,
@@ -234,12 +230,11 @@ export function reduceEvent(s: OnlineState, ev: GameEventEnvelope | { type: stri
         canAbort: false,
         canOfferDraw: false,
         canAcceptDraw: false,
-        canAcceptChallenge: false,
       }
       const newRating = g.you === 'white' ? p.whiteRating : p.blackRating
       const me = s.me && newRating !== null ? { ...s.me, rating: newRating } : s.me
 
-      return putGame({ ...s, challenges, me }, p.gameId, {
+      return putGame({ ...s, me }, p.gameId, {
         ...local,
         state,
         seenSeq: e.seq,
@@ -271,20 +266,13 @@ export function reduceEvent(s: OnlineState, ev: GameEventEnvelope | { type: stri
     }
     case 'match.found': {
       const p = (e as GameEventEnvelope<'match.found'>).payload
-      const challenges = { ...s.challenges }
-      delete challenges[p.gameId]
 
-      return fetchLater({ ...s, queue: null, lastMatch: p, challenges }, p.gameId)
+      return fetchLater({ ...s, queue: null, lastMatch: p }, p.gameId)
     }
     case 'match.cancelled': {
       const p = (e as GameEventEnvelope<'match.cancelled'>).payload
 
       return { ...s, queue: p.reason === 'replaced' ? s.queue : null, lastQueueCancel: p.reason }
-    }
-    case 'challenge.received': {
-      const p = (e as GameEventEnvelope<'challenge.received'>).payload
-
-      return { ...s, challenges: { ...s.challenges, [p.gameId]: p } }
     }
     case 'offer.received': {
       const p = (e as GameEventEnvelope<'offer.received'>).payload
@@ -318,7 +306,8 @@ export function reduceEvent(s: OnlineState, ev: GameEventEnvelope | { type: stri
       const p = (e as GameEventEnvelope<'chat.message'>).payload
       const kept = s.chat[p.threadId] ?? []
       if (kept.some(m => m.id === p.message.id)) return s
-      const isMine = s.me !== null && p.message.sender.userId === s.me.userId
+      // Unread counts the other member's typed messages (PROTOCOL.md 11).
+      const isMine = p.message.kind !== 'user' || (s.me !== null && p.message.sender?.userId === s.me.userId)
 
       return {
         ...s,
@@ -336,8 +325,24 @@ export function reduceEvent(s: OnlineState, ev: GameEventEnvelope | { type: stri
   }
 }
 
-export const reduceEvents = (s: OnlineState, events: readonly GameEventEnvelope[], now: number): OnlineState =>
-  events.reduce((acc, ev) => reduceEvent(acc, ev, now), s)
+export const reduceEvents = (
+  s: OnlineState,
+  events: readonly GameEventEnvelope[],
+  now: number,
+  serverTime: number | null = null,
+): OnlineState => events.reduce((acc, ev) => reduceEvent(acc, ev, now, serverTime), s)
+
+// Pending offers addressed to me / sent by me.
+export const incomingOffers = (s: OnlineState): Offer[] =>
+  Object.values(s.offers).filter(o => s.me !== null && o.to.userId === s.me.userId)
+export const outgoingOffers = (s: OnlineState): Offer[] =>
+  Object.values(s.offers).filter(o => s.me !== null && o.from.userId === s.me.userId)
+
+// Offers from GET /api/mod/offers (after login or a resync).
+export const applyOffers = (s: OnlineState, incoming: readonly Offer[], outgoing: readonly Offer[]): OnlineState => ({
+  ...s,
+  offers: Object.fromEntries([...incoming, ...outgoing].filter(o => o.status === 'pending').map(o => [o.id, o])),
+})
 
 export const markRead = (s: OnlineState, threadId: string): OnlineState => {
   const unread = { ...s.unread }

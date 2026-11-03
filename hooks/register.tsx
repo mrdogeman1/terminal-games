@@ -151,7 +151,7 @@ export const register: Register = (on, options) => {
         {v.message && <Text color="yellow">{v.message}</Text>}
         {v.phase === 'signed-in' && (
           <Text dimColor>
-            Online games {v.online.games} · challenges {v.online.challenges} · offers {v.online.offers}
+            Online games {v.online.games} · offers in {v.online.offersIn} · out {v.online.offersOut}
             {v.online.isQueued ? ' · in the lobby' : ''}
           </Text>
         )}

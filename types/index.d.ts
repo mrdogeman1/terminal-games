@@ -21,7 +21,7 @@ export type NetView = {
   login: LoginPrompt | null
   message: string | null
   offline: { files: number; pending: number }
-  online: { games: number; challenges: number; offers: number; isQueued: boolean }
+  online: { games: number; offersIn: number; offersOut: number; isQueued: boolean }
 }
 
 declare module 'claude-code' {

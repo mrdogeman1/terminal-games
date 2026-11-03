@@ -3,6 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { ensureClientId, isUuidV4, resolveServerUrl } from '../hooks/host'
 import { ApiError, compareVersions, createClient, MOD_VERSION, NetworkError, UpgradeRequiredError } from '../hooks/net/client'
 import { CLIENT_ID, memoryHost, rejection, SERVER } from './kit'
+import type { Reply } from './kit'
 
 test('every /api/mod request carries version, client id and bearer token', async () => {
   const host = memoryHost({
@@ -95,7 +96,7 @@ test('/version naming a newer minimum counts as 426', async () => {
 test('401, error envelope, retry-after, rotated token, network error', async () => {
   let mode = '401'
   const host = memoryHost({
-    'GET /api/mod/me': () =>
+    'GET /api/mod/me': (): Reply =>
       mode === '401'
         ? { status: 401, body: { error: 'unauthorized', message: 'Signed out' } }
         : mode === '429'

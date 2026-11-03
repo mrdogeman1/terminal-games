@@ -2,6 +2,7 @@ import type { HttpResponse } from 'claude-code'
 
 import type { Host } from '../host'
 import type {
+  BlocksResponse,
   ChatMessageInfo,
   ChatThreadInfo,
   CreateGameRequest,
@@ -14,19 +15,20 @@ import type {
   GameStatus,
   GamesListResponse,
   ImportResponse,
+  LobbyEntry,
+  LobbyOfferRequest,
+  LobbyResponse,
   LogoutResponse,
   MeResponse,
   MessagesResponse,
   MoveRequest,
   MoveResponse,
-  OfflineGame,
-  LobbyResponse,
   Offer,
+  OffersResponse,
+  OfflineGame,
   QueueJoinRequest,
   QueueLeaveResponse,
-  QueueStatus,
   ThreadsResponse,
-  TimeControl,
   VersionResponse,
 } from './protocol'
 
@@ -122,7 +124,7 @@ export const compareVersions = (a: string, b: string): number => {
 
 const enc = encodeURIComponent
 
-// The typed client for every /api/mod/* endpoint of PROTOCOL.md (19). Every
+// The typed client for every /api/mod/* endpoint of PROTOCOL.md (20). Every
 // request carries X-Mod-Version and X-Client-Id; all but /version the bearer
 // token. Each call resolves the parsed body or rejects an ApiError,
 // UpgradeRequiredError or NetworkError.
@@ -223,28 +225,29 @@ export function createClient(host: Pick<Host, 'http'>, options: ClientOptions) {
         limit: q.limit,
         cursor: q.cursor,
       }),
-    createGame: (req: CreateGameRequest) => post<GameState>('/api/mod/games', req),
+    // A computer game answers its GameState; a challenge answers an Offer.
+    createComputerGame: (req: Extract<CreateGameRequest, { mode: 'computer' }>) =>
+      post<GameState>('/api/mod/games', req),
+    challenge: (req: Omit<Extract<CreateGameRequest, { mode: 'online' }>, 'mode'>) =>
+      post<Offer>('/api/mod/games', { mode: 'online', ...req }),
     getGame: (id: string) => get<GameState>(`/api/mod/games/${enc(id)}`),
     move: (id: string, req: MoveRequest) => post<MoveResponse>(`/api/mod/games/${enc(id)}/move`, req),
     resign: (id: string) => post<GameState>(`/api/mod/games/${enc(id)}/resign`),
     draw: (id: string, action: DrawAction) => post<GameState>(`/api/mod/games/${enc(id)}/draw`, { action }),
-    acceptChallenge: (id: string) => post<GameState>(`/api/mod/games/${enc(id)}/accept`),
-    declineChallenge: (id: string) => post<GameState>(`/api/mod/games/${enc(id)}/decline`),
-    // 9 (open lobby)
-    joinQueue: (req: QueueJoinRequest) => post<QueueStatus>('/api/mod/queue', req),
-    leaveQueue: () => del<QueueLeaveResponse>('/api/mod/queue'),
+    // 9
     lobby: () => get<LobbyResponse>('/api/mod/queue'),
-    sendOffer: (userId: string, timeControl: TimeControl) =>
-      post<Offer>(`/api/mod/queue/${enc(userId)}/offer`, { timeControl }),
+    joinLobby: (req: QueueJoinRequest = {}) => post<LobbyEntry>('/api/mod/queue', req),
+    leaveLobby: () => del<QueueLeaveResponse>('/api/mod/queue'),
+    sendOffer: (userId: string, req: LobbyOfferRequest) => post<Offer>(`/api/mod/queue/${enc(userId)}/offer`, req),
+    offers: () => get<OffersResponse>('/api/mod/offers'),
     acceptOffer: (offerId: string) => post<GameState>(`/api/mod/offers/${enc(offerId)}/accept`),
-    declineOffer: (offerId: string) => post<{ ok: true }>(`/api/mod/offers/${enc(offerId)}/decline`),
+    // By the receiver: decline. By the sender: cancel.
+    declineOffer: (offerId: string) => post<Offer>(`/api/mod/offers/${enc(offerId)}/decline`),
     // 10
     friends: () => get<FriendsResponse>('/api/mod/friends'),
     requestFriend: (username: string) => post<FriendRequestResponse>('/api/mod/friends/request', { username }),
     acceptFriend: (userId: string) => post<{ friend: FriendEntry }>(`/api/mod/friends/${enc(userId)}/accept`),
     removeFriend: (userId: string) => del<{ removed: true }>(`/api/mod/friends/${enc(userId)}`),
-    block: (userId: string) => post<{ blocked: true }>(`/api/mod/blocks/${enc(userId)}`),
-    unblock: (userId: string) => del<{ blocked: false }>(`/api/mod/blocks/${enc(userId)}`),
     // 11
     chatThreads: (q: { limit?: number; cursor?: string } = {}) =>
       get<ThreadsResponse>('/api/mod/chat/threads', q),
@@ -252,11 +255,17 @@ export function createClient(host: Pick<Host, 'http'>, options: ClientOptions) {
       get<MessagesResponse>(`/api/mod/chat/threads/${enc(threadId)}/messages`, q),
     sendChat: (threadId: string, text: string) =>
       post<ChatMessageInfo>(`/api/mod/chat/threads/${enc(threadId)}/messages`, { text }),
-    openDm: (username: string) => post<ChatThreadInfo>('/api/mod/chat/dm', { username }),
+    markRead: (threadId: string, upTo?: string) =>
+      post<{ unread: number }>(`/api/mod/chat/threads/${enc(threadId)}/read`, upTo ? { upTo } : {}),
+    openThread: (username: string) => post<ChatThreadInfo>('/api/mod/chat/dm', { username }),
     // 12
+    blocks: () => get<BlocksResponse>('/api/mod/blocks'),
+    block: (userId: string) => post<{ blocked: true }>(`/api/mod/blocks/${enc(userId)}`),
+    unblock: (userId: string) => del<{ blocked: false }>(`/api/mod/blocks/${enc(userId)}`),
+    // 13
     importOffline: (games: readonly OfflineGame[]) =>
       post<ImportResponse>('/api/mod/offline/import', { games }),
-    // 13.2
+    // 14.2
     events: (since: number | undefined, timeoutMs = 20_000) =>
       get<EventsResponse>('/api/mod/events', { since, timeoutMs }),
   }

@@ -1,0 +1,12 @@
+{
+  "name": "terminal-games",
+  "owner": { "name": "mrdogeman1" },
+  "description": "Arcade games for Claude Code, with online multiplayer chess",
+  "plugins": [
+    {
+      "name": "terminal-games",
+      "source": "./",
+      "description": "Arcade games in a side pane, with chess you can play online against other people"
+    }
+  ]
+}

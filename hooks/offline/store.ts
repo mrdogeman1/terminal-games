@@ -4,7 +4,7 @@ import { isUuidV4 } from '../host'
 import type { ModClient } from '../net/client'
 import type { Color, GameResult, ImportResult, OfflineGame, OfflineReason } from '../net/protocol'
 
-// Offline games (PROTOCOL.md 16): one pretty-printed JSON file per finished
+// Offline games (PROTOCOL.md 17): one pretty-printed JSON file per finished
 // game under <dataDir>/games/, named <YYYYMMDD-HHmmss>-<clientId[0..8]>.json
 // from playedAt (UTC). No account data, no token. Unfinished games stay in
 // $.store, as the arcade keeps them.
@@ -53,7 +53,7 @@ export const readOfflineGameValue = (value: unknown): OfflineGame | null => {
   }
 }
 
-// The PGN of a finished offline game: the headers of 16.2 and the movetext
+// The PGN of a finished offline game: the headers of 17.2 and the movetext
 // the caller built from SAN (the chess rules come with the port).
 export const offlinePgn = (
   game: Pick<OfflineGame, 'playedAt' | 'color' | 'engineLevel' | 'result'>,
@@ -148,7 +148,7 @@ export function createOfflineStore(host: Pick<Host, 'fs' | 'store' | 'clock'>, d
   const uploaded = async (): Promise<UploadedMap> =>
     readUploadedValue(await host.store.get(STORE.uploaded).catch(() => undefined))
 
-  // Sends every game whose clientId is not yet in "offline.uploaded" (16.3)
+  // Sends every game whose clientId is not yet in "offline.uploaded" (17.3)
   // in batches of 50, recording each result. The server is idempotent per
   // clientId, so a batch whose answer was lost is simply sent again later.
   const uploadPending = async (client: Pick<ModClient, 'importOffline'>): Promise<UploadSummary> => {
@@ -186,19 +186,19 @@ export function createOfflineStore(host: Pick<Host, 'fs' | 'store' | 'clock'>, d
 export type OfflineStore = ReturnType<typeof createOfflineStore>
 
 // Where the mod keeps its files: the `dataDir` setting, else
-// <CLAUDE_CONFIG_DIR or ~/.claude>/claude-games. Not the plugin folder: an
+// <CLAUDE_CONFIG_DIR or ~/.claude>/terminal-games. Not the plugin folder: an
 // update replaces that.
 export const resolveDataDir = (setting: unknown, env: { configDir?: string; home?: string }): string => {
   const own = typeof setting === 'string' ? setting.trim() : ''
   const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '')
   if (own) return norm(own)
-  if (env.configDir) return `${norm(env.configDir)}/claude-games`
+  if (env.configDir) return `${norm(env.configDir)}/terminal-games`
 
-  return `${norm(env.home ?? '.')}/.claude/claude-games`
+  return `${norm(env.home ?? '.')}/.claude/terminal-games`
 }
 
 // Records the start of a game that may end up in a file: its clientId and
-// time are fixed when the game starts (16.2).
+// time are fixed when the game starts (17.2).
 export const newOfflineGameId = (makeId: () => string, now: number, color: Color, engineLevel: number) => ({
   clientId: makeId(),
   playedAt: new Date(now).toISOString(),

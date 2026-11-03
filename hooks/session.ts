@@ -10,7 +10,16 @@ import type { EventLoop } from './net/events'
 import type { GameEventEnvelope, MeResponse, StoredAuth } from './net/protocol'
 import { createOfflineStore } from './offline/store'
 import type { OfflineStore } from './offline/store'
-import { applyMe, applySnapshot, emptyOnline, reduceEvents, takeFetches } from './online/reducer'
+import {
+  applyMe,
+  applyOffers,
+  applySnapshot,
+  emptyOnline,
+  incomingOffers,
+  outgoingOffers,
+  reduceEvents,
+  takeFetches,
+} from './online/reducer'
 import type { OnlineState } from './online/reducer'
 
 // The online session (PROTOCOL.md 17): version check, stored login, device
@@ -25,7 +34,7 @@ export const initialView = (serverUrl: string): NetView => ({
   login: null,
   message: null,
   offline: { files: 0, pending: 0 },
-  online: { games: 0, challenges: 0, offers: 0, isQueued: false },
+  online: { games: 0, offersIn: 0, offersOut: 0, isQueued: false },
 })
 
 export type SessionDeps = {
@@ -66,8 +75,8 @@ export function createSession(deps: SessionDeps) {
       rating: online.me?.rating ?? v.rating,
       online: {
         games: Object.values(online.games).filter(g => g.state.status === 'active').length,
-        challenges: Object.keys(online.challenges).length,
-        offers: Object.keys(online.offers).length,
+        offersIn: incomingOffers(online).length,
+        offersOut: outgoingOffers(online).length,
         isQueued: online.queue !== null,
       },
     }))
@@ -126,13 +135,20 @@ export function createSession(deps: SessionDeps) {
     await setOnline(next)
   }
 
-  const onEvents = async (events: GameEventEnvelope[]) => {
+  const fetchOffers = async () => {
+    const o = await api().offers().catch(() => null)
+    if (o) await setOnline(applyOffers(online, o.incoming, o.outgoing))
+  }
+
+  const onEvents = async (events: GameEventEnvelope[], serverTime: number | null) => {
     const now = await host.clock.now()
-    await setOnline(reduceEvents(online, events, now))
+    await setOnline(reduceEvents(online, events, now, serverTime))
     for (const e of events) {
       if (e.type === 'match.found') deps.toast('Match found: your game is ready.')
-      if (e.type === 'challenge.received') deps.toast('You have a new challenge.')
-      if (e.type === 'offer.received') deps.toast('You have a new game offer.')
+      if (e.type === 'offer.received') {
+        const { offer } = (e as GameEventEnvelope<'offer.received'>).payload
+        deps.toast(`${offer.from.username} (${offer.from.rating}) offers a game.`)
+      }
     }
     await fetchGames()
   }
@@ -174,6 +190,7 @@ export function createSession(deps: SessionDeps) {
         for (const id of Object.keys(next.games)) next = { ...next, toFetch: [...next.toFetch, id] }
         await setOnline(next)
         await fetchGames()
+        await fetchOffers()
       },
       onStop: reason => {
         if (reason === 'unauthorized') void signedOut('Signed out: the session ended. Run /games login.')
@@ -181,6 +198,7 @@ export function createSession(deps: SessionDeps) {
     })
     await loop.start(me.eventSeq)
     await fetchGames()
+    await fetchOffers()
     const note = await upload()
     if (note.startsWith('Uploaded')) deps.toast(note)
   }

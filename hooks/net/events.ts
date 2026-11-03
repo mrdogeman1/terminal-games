@@ -7,9 +7,10 @@ import type { ModClient } from './client'
 import type { GameEventEnvelope } from './protocol'
 
 export type EventLoopOptions = {
-  // New events, ascending by seq, each seq > the last one delivered.
-  onEvents: (events: GameEventEnvelope[]) => void | Promise<void>
-  // 410 events_expired: refetch /me, games, friends, threads (13.4). The loop
+  // New events, ascending by seq, each seq > the last one delivered, with
+  // the response's serverTime.
+  onEvents: (events: GameEventEnvelope[], serverTime: number | null) => void | Promise<void>
+  // 410 events_expired: refetch /me, games, offers, friends, threads (14.4). The loop
   // continues from `seq` afterwards.
   onResync: (seq: number) => void | Promise<void>
   // Called when the loop stops by itself (401, 426).
@@ -31,7 +32,7 @@ export type EventLoopStatus = {
 
 const MAX_BACKOFF = 30_000
 
-// The long-poll of PROTOCOL.md 13.5: one GET /api/mod/events in flight per
+// The long-poll of PROTOCOL.md 14.5: one GET /api/mod/events in flight per
 // install, the next started by a `$.clock.every` tick as soon as the last one
 // returned; `since` is always the server's `seq`, kept in the store under
 // "events.seq". A response from a request that was superseded (by `stop`, a
@@ -116,7 +117,7 @@ export function createEventLoop(
 
     const after = since
     const fresh = (res.events ?? []).filter(e => after === undefined || e.seq > after)
-    if (fresh.length) await options.onEvents(fresh)
+    if (fresh.length) await options.onEvents(fresh, typeof res.serverTime === 'number' ? res.serverTime : null)
     if (typeof res.seq === 'number') await persist(res.seq)
     if (res.more && running) await tick()
   }
