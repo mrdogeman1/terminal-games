@@ -146,8 +146,9 @@ test('the client id is made once and kept', async () => {
   }
 })
 
-test('server URL setting falls back to localhost', () => {
-  expect(resolveServerUrl('')).toBe('http://localhost:3000')
-  expect(resolveServerUrl('ftp://x')).toBe('http://localhost:3000')
+test('server URL setting falls back to the public server; localhost only when set', () => {
+  expect(resolveServerUrl('')).toBe('https://arcade.skywars.fun')
+  expect(resolveServerUrl('http://localhost:3000/')).toBe('http://localhost:3000')
+  expect(resolveServerUrl('ftp://x')).toBe('https://arcade.skywars.fun')
   expect(resolveServerUrl(' https://games.example.com/ ')).toBe('https://games.example.com')
 })

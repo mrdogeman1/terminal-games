@@ -36,7 +36,7 @@ files stay where they are.
 
 Plugin options (`/plugin`, then terminal-games, then configure):
 
-- `serverUrl`: the game server. Empty means `http://localhost:3000` (development).
+- `serverUrl`: the game server, default `https://arcade.skywars.fun` (also used when empty). Set it to e.g. `http://localhost:3000` for a local dev server.
 - `dataDir`: folder for offline games instead of the default above.
 
 ## Stockfish (optional)

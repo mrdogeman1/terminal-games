@@ -10,8 +10,8 @@
     "serverUrl": {
       "type": "string",
       "title": "Server URL",
-      "description": "Base URL of the games server (empty: http://localhost:3000, for a local dev server)",
-      "default": "https://games.example"
+      "description": "Base URL of the games server (empty: https://arcade.skywars.fun; e.g. http://localhost:3000 for a local dev server)",
+      "default": "https://arcade.skywars.fun"
     },
     "dataDir": {
       "type": "string",

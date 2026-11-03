@@ -58,16 +58,15 @@ export async function ensureClientId(host: Pick<Host, 'store'>): Promise<string>
 }
 
 // The public server: the `serverUrl` setting's default in plugin.json
-// (placeholder until the server's address is fixed; keep both in step).
-export const PRODUCTION_SERVER = 'https://games.example'
-// A local dev server (npm run dev in the server repo).
-export const DEV_SERVER = 'http://localhost:3000'
+// (keep both in step). A local dev server is used only when set explicitly,
+// e.g. http://localhost:3000.
+export const PRODUCTION_SERVER = 'https://arcade.skywars.fun'
 
 // The configured server, without a trailing slash; empty or not http(s)
-// falls back to the local dev server.
+// falls back to the public server.
 export const resolveServerUrl = (setting: unknown): string => {
   const raw = typeof setting === 'string' ? setting.trim() : ''
-  if (!/^https?:\/\/[^\s]+$/i.test(raw)) return DEV_SERVER
+  if (!/^https?:\/\/[^\s]+$/i.test(raw)) return PRODUCTION_SERVER
 
   return raw.replace(/\/+$/, '')
 }

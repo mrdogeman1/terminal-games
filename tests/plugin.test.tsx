@@ -7,7 +7,7 @@ import type { Reply } from './kit'
 // the pane, with $.http.fetch, $.fs, $.store, $.clock, $.env and
 // $.process.run answered by the test's hooks beneath it.
 
-const SERVER = 'https://games.example'
+const SERVER = 'https://arcade.skywars.fun'
 const PANE = {
   plugin: 'terminal-games',
   component: 'Pane',
@@ -119,7 +119,7 @@ test('starts signed out, lists offline games, answers /games status and help', a
   expect(text).toMatch(/Offline games 1 \(1 not uploaded\)/)
 
   const status = await $.command.run({ command: 'games', args: 'status' } as never)
-  expect(status.text).toMatch(/Server: https:\/\/games\.example/)
+  expect(status.text).toMatch(/Server: https:\/\/arcade\.skywars\.fun/)
   expect(status.text).toMatch(/Not signed in/)
   expect(status.text).toMatch(/C:\/Users\/t\/\.claude\/terminal-games\/games/)
   expect((await $.command.run({ command: 'games', args: 'what' } as never)).text).toMatch(/\/games login/)
