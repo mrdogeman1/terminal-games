@@ -69,30 +69,44 @@ export function createEventLoop(
     if (reason) options.onStop?.(reason)
   }
 
+  // Network errors, 5xx, a failed handler and anything unexpected:
+  // 2 s, 4 s, 8 s ... 30 s.
+  const backoff = async () => {
+    const now = await host.clock.now()
+    failures++
+    backoffUntil = now + Math.min(MAX_BACKOFF, 2_000 * 2 ** (failures - 1))
+  }
+
   const fail = async (error: unknown) => {
     if (error instanceof UpgradeRequiredError) return stop('upgrade')
     if (error instanceof ApiError && error.status === 401) return stop('unauthorized')
     if (error instanceof ApiError && error.status === 410) {
       const seq = typeof error.body?.seq === 'number' ? error.body.seq : undefined
+      // Without a seq there is nothing to resync to: try again later.
+      if (seq === undefined) return backoff()
+      try {
+        await options.onResync(seq)
+      } catch {
+        // Resync failed: keep the old seq, the next poll gets 410 again.
+        return backoff()
+      }
       failures = 0
-      if (seq !== undefined) await persist(seq)
-      await options.onResync(seq ?? since ?? 0)
+      await persist(seq)
 
       return
     }
-    const now = await host.clock.now()
     if (error instanceof ApiError && (error.status === 429 || error.status === 503)) {
-      backoffUntil = now + (error.retryAfterMs ?? 5_000)
+      backoffUntil = (await host.clock.now()) + (error.retryAfterMs ?? 5_000)
 
       return
     }
-    // Network errors, 5xx and anything unexpected: 2 s, 4 s, 8 s ... 30 s.
-    failures++
-    backoffUntil = now + Math.min(MAX_BACKOFF, 2_000 * 2 ** (failures - 1))
+    await backoff()
   }
 
   // One step: starts a request unless one is in flight (and not stuck) or
-  // the loop is backing off. Resolves when that request was handled.
+  // the loop is backing off. Resolves when that request was handled: events
+  // delivered and seq stored. The request counts as in flight until then,
+  // so a slow handler never overlaps the next poll. Never rejects.
   async function tick(): Promise<void> {
     if (!running) return
     const now = await host.clock.now()
@@ -101,25 +115,38 @@ export function createEventLoop(
 
     const gen = ++generation
     inFlight = { gen, startedAt: now }
-    let res
+    let more = false
     try {
-      res = await client.events(since, timeoutMs)
-    } catch (error) {
+      let res
+      try {
+        res = await client.events(since, timeoutMs)
+      } catch (error) {
+        if (gen === generation) await fail(error)
+
+        return
+      }
       if (gen !== generation) return
-      inFlight = null
-      await fail(error)
 
-      return
+      const after = since
+      const fresh = (res.events ?? []).filter(e => after === undefined || e.seq > after)
+      try {
+        if (fresh.length) await options.onEvents(fresh, typeof res.serverTime === 'number' ? res.serverTime : null)
+      } catch {
+        // Seq not stored: the same events come again after the backoff.
+        await backoff()
+
+        return
+      }
+      failures = 0
+      if (typeof res.seq === 'number') await persist(res.seq)
+      more = res.more === true
+    } catch {
+      // A throwing clock or store: back off rather than spin.
+      await backoff().catch(() => undefined)
+    } finally {
+      if (inFlight?.gen === gen) inFlight = null
     }
-    if (gen !== generation) return
-    inFlight = null
-    failures = 0
-
-    const after = since
-    const fresh = (res.events ?? []).filter(e => after === undefined || e.seq > after)
-    if (fresh.length) await options.onEvents(fresh, typeof res.serverTime === 'number' ? res.serverTime : null)
-    if (typeof res.seq === 'number') await persist(res.seq)
-    if (res.more && running) await tick()
+    if (more && running && gen === generation) await tick()
   }
 
   return {
@@ -131,8 +158,8 @@ export function createEventLoop(
       running = true
       failures = 0
       backoffUntil = 0
-      timer = host.clock.every(tickMs, () => void tick())
-      void tick()
+      timer = host.clock.every(tickMs, () => void tick().catch(() => undefined))
+      void tick().catch(() => undefined)
     },
     stop: () => stop(),
     tick,

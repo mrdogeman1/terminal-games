@@ -133,3 +133,48 @@ test('401 stops the loop', async () => {
   expect(t.sinces().length).toBe(1)
   expect(t.loop.status().isRunning).toBe(false)
 })
+
+test('a slow handler keeps the request in flight; a failing handler or resync backs off without storing seq', async () => {
+  const replies: Reply[] = [page([11], 11), page([12], 12), { status: 410, body: { error: 'events_expired', message: 'resync', seq: 900 } }]
+  const host = memoryHost({ 'GET /api/mod/events': () => replies.shift() ?? new Promise<Reply>(() => {}) })
+  const client = createClient(host, { serverUrl: SERVER, clientId: CLIENT_ID, token: () => 't' })
+  let finish: () => void = () => {}
+  let calls = 0
+  const loop = createEventLoop(host, client, {
+    onEvents: () => {
+      calls++
+      if (calls === 1) return new Promise<void>(r => (finish = r))
+      throw new Error('handler broke')
+    },
+    onResync: () => {
+      throw new Error('resync broke')
+    },
+  })
+  const polls = () => host.sent.filter((s: Sent) => s.path === '/api/mod/events').length
+
+  await loop.start(10)
+  await host.settle()
+  await host.advance(1_000)
+  expect(polls()).toBe(1)
+  expect(loop.status().isInFlight).toBe(true)
+
+  finish()
+  await host.settle()
+  expect(host.kept['events.seq']).toBe(11)
+  expect(loop.status().isInFlight).toBe(false)
+
+  // The handler throws: seq stays, the loop backs off 2 s.
+  await host.advance(500)
+  expect(polls()).toBe(2)
+  expect(host.kept['events.seq']).toBe(11)
+  expect(loop.status().failures).toBe(1)
+  await host.advance(500)
+  expect(polls()).toBe(2)
+
+  // After the backoff a 410 whose resync throws: seq still 11, backoff grows.
+  await host.advance(2_000)
+  expect(polls()).toBe(3)
+  expect(host.kept['events.seq']).toBe(11)
+  expect(loop.status().failures).toBe(2)
+  loop.stop()
+})

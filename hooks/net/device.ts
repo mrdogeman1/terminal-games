@@ -191,7 +191,13 @@ export async function startDeviceLogin(
   }
 
   const schedule = () => {
-    timer = host.clock.after(intervalMs, () => void step())
+    timer = host.clock.after(intervalMs, () =>
+      void step().catch((error: unknown) =>
+        end({ kind: 'error', message: `Login failed: ${(error as Error)?.message ?? String(error)}. Run /games login to try again.` }).catch(
+          () => undefined,
+        ),
+      ),
+    )
   }
   schedule()
 

@@ -215,7 +215,12 @@ export function createSession(deps: SessionDeps) {
       clientId = await ensureClientId(host)
       await refreshCounts().catch(() => undefined)
       auth = readAuth(await host.store.get(STORE.auth))
-      if (auth && auth.serverUrl !== serverUrl) auth = null
+      if (auth && auth.serverUrl !== serverUrl) {
+        // Another server: its token and event seq mean nothing here.
+        auth = null
+        await host.store.delete(STORE.auth).catch(() => undefined)
+        await host.store.delete(STORE.eventsSeq).catch(() => undefined)
+      }
       try {
         await api().version()
       } catch (error) {

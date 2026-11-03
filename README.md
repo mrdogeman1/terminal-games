@@ -49,7 +49,11 @@ it the built-in engine plays. Stockfish is GPLv3 (`stockfish/COPYING`).
 ```
 claude plugin validate .
 claude plugin test .
+tsc -p .
 ```
+
+`tsc -p .` needs the types in `.claude-plugin/types/`, which Claude Code writes there once it
+has loaded the mod (for example with `claude --plugin-dir <this folder>`).
 
 ## License
 
