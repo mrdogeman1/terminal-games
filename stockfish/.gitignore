@@ -1,0 +1,5 @@
+# The engine binary is downloaded separately (GPLv3, ~100 MB); see README.md.
+*.exe
+*.zip
+stockfish
+stockfish-*

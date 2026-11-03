@@ -1,0 +1,23 @@
+{
+  "name": "terminal-games",
+  "version": "0.1.0",
+  "description": "Arcade games in a side pane, with chess you can play online against other people",
+  "author": { "name": "mrdogeman1" },
+  "repository": "https://github.com/mrdogeman1/claude-games-multiplayer",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "serverUrl": {
+      "type": "string",
+      "title": "Server URL",
+      "description": "Base URL of the claude-games server (empty: http://localhost:3000)",
+      "default": ""
+    },
+    "dataDir": {
+      "type": "string",
+      "title": "Data folder",
+      "description": "Where offline games are kept (empty: <Claude config folder>/claude-games)",
+      "default": ""
+    }
+  }
+}

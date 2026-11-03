@@ -1,0 +1,344 @@
+// Wire types of docs/PROTOCOL.md (API v1). That file is the contract: change
+// it first, then these. Section numbers in comments refer to it.
+
+// 5. Shared types
+export type Color = 'white' | 'black'
+export type GameMode = 'online' | 'computer'
+export type GameStatus = 'waiting' | 'active' | 'finished' | 'aborted'
+export type GameResult = '1-0' | '0-1' | '1/2-1/2'
+// Open-lobby revision (Luc, 2026-11-03; PROTOCOL.md is being updated to
+// match): an overall game clock and/or a per-move limit. Both null =
+// unlimited. Default: no game clock, 180 s per move.
+export interface GameClock { initialMs: number; incrementMs: number }
+export interface TimeControl { gameClock: GameClock | null; perMoveMs: number | null }
+export const DEFAULT_TIME_CONTROL: TimeControl = { gameClock: null, perMoveMs: 180_000 }
+
+// Tiers are labels only in the open lobby (tierOf in ../online/reducer.ts).
+export type Tier = 'beginner' | 'casual' | 'club' | 'expert' | 'any'
+export type GameSource = 'web' | 'mod'
+export type GameReason =
+  | 'checkmate' | 'resign' | 'timeout'
+  | 'stalemate' | 'insufficient_material' | 'threefold' | 'fifty_move' | 'agreement'
+  | 'timeout_vs_insufficient' | 'max_plies'
+  | 'aborted' | 'no_first_move' | 'abandoned' | 'declined' | 'challenge_expired'
+
+export interface UserRef { userId: string; username: string; rating: number }
+
+export interface PlayerInfo {
+  kind: 'user' | 'guest' | 'engine'
+  userId: string | null
+  username: string | null
+  rating: number | null
+  online: boolean | null
+}
+
+export interface MoveInfo {
+  ply: number
+  san: string
+  uci: string
+  fenAfter: string
+  clockMs: number | null
+  at: string
+}
+
+export interface ClockState {
+  initialMs: number
+  incrementMs: number
+  whiteMs: number
+  blackMs: number
+  running: Color | null
+  serverTime: number
+}
+
+export interface GameSummary {
+  id: string
+  mode: GameMode
+  source: GameSource
+  timeControl: TimeControl
+  engineLevel: number | null
+  rated: boolean
+  status: GameStatus
+  result: GameResult | null
+  reason: GameReason | null
+  white: PlayerInfo
+  black: PlayerInfo
+  you: Color
+  turn: Color
+  fen: string
+  plyCount: number
+  lastMove: { uci: string; san: string } | null
+  ratingDeltaWhite: number | null
+  ratingDeltaBlack: number | null
+  createdAt: string
+  lastMoveAt: string | null
+}
+
+export interface GameState extends GameSummary {
+  pgn: string
+  moves: MoveInfo[]
+  clock: ClockState | null
+  drawOffer: Color | null
+  inCheck: boolean
+  legalMoves: string[]
+  canMove: boolean
+  canResign: boolean
+  canAbort: boolean
+  canOfferDraw: boolean
+  canAcceptDraw: boolean
+  canAcceptChallenge: boolean
+  chatThreadId: string | null
+  challengeExpiresAt: string | null
+  // perMove games: when the side to move runs out of time (ISO); else null.
+  moveDeadlineAt: string | null
+  eventSeq: number
+}
+
+// 2. Errors
+export type ErrorCode =
+  | 'bad_request' | 'illegal_move' | 'not_supported'
+  | 'unauthorized'
+  | 'forbidden' | 'banned' | 'username_required' | 'tier_not_allowed' | 'not_friends'
+  | 'not_found'
+  | 'not_your_turn' | 'stale_state' | 'game_not_active' | 'already_in_game'
+  | 'draw_already_offered' | 'no_draw_offer' | 'conflict'
+  | 'events_expired'
+  | 'payload_too_large'
+  | 'upgrade_required'
+  | 'rate_limited'
+  | 'internal' | 'unavailable'
+
+export interface ApiErrorBody {
+  error: ErrorCode | string
+  message: string
+  [extra: string]: unknown
+}
+
+// 3. Versioning
+export interface VersionResponse {
+  apiVersion: 1
+  minModVersion: string
+  latestModVersion: string
+  serverTime: number
+}
+
+// 4. Device flow (Better Auth, OAuth-shaped errors)
+export interface DeviceCodeResponse {
+  device_code: string
+  user_code: string
+  verification_uri: string
+  verification_uri_complete: string
+  expires_in: number
+  interval: number
+}
+export interface DeviceTokenResponse {
+  access_token: string
+  token_type: 'Bearer'
+  expires_in: number
+  scope: string
+}
+export interface OAuthErrorBody { error: string; error_description?: string }
+export interface StoredAuth {
+  serverUrl: string
+  token: string
+  userId: string
+  username: string
+  obtainedAt: string
+}
+export interface LogoutResponse { ok: true }
+
+// 7. Account
+export interface MeResponse {
+  user: { id: string; username: string; rating: number; role: 'user' | 'admin'; createdAt: string }
+  eventSeq: number
+  activeGameIds: string[]
+  queue: QueueStatus | null
+  serverTime: number
+}
+
+// 8. Games
+export interface GamesListResponse { games: GameSummary[]; nextCursor: string | null }
+export type CreateGameRequest =
+  | { mode: 'computer'; engineLevel: number; color: Color | 'random' }
+  | { mode: 'online'; opponentUsername: string; timeControl: TimeControl; color?: Color | 'random' }
+export interface MoveRequest { uci: string; expectedPly?: number }
+export interface MoveResponse { move: MoveInfo; game: GameState }
+export type DrawAction = 'offer' | 'accept' | 'decline'
+
+// 9. Queue: an open lobby (open-lobby revision). Joining lists you; anyone
+// can send you an offer; an opponent whose rating is in your ratingRange
+// (and you in theirs) is matched at once with `match.found`.
+export interface RatingRange { min: number; max: number }
+// What a player accepts per dimension, and which of those they prefer
+// (preferred is a subset of accepted). null in a list = "none" (no game
+// clock / no per-move limit).
+export interface Choice<T> { accepted: T[]; preferred: T[] }
+export interface QueueJoinRequest {
+  ratingRange: RatingRange
+  gameClocks: Choice<GameClock | null>
+  perMove: Choice<number | null>
+}
+export interface QueueStatus extends QueueJoinRequest {
+  rating: number
+  since: string
+}
+export interface LobbyEntry extends QueueJoinRequest {
+  userId: string
+  username: string
+  rating: number
+  since: string
+}
+export interface LobbyResponse { entries: LobbyEntry[]; you: QueueStatus | null }
+export interface QueueLeaveResponse { left: boolean }
+export interface Offer {
+  id: string
+  from: UserRef
+  to: UserRef
+  timeControl: TimeControl
+  createdAt: string
+  expiresAt: string | null
+}
+export type OfferCancelReason = 'withdrawn' | 'declined' | 'expired' | 'matched' | 'left' | string
+
+// 10. Friends
+export interface FriendEntry extends UserRef { online: boolean; lastSeenAt: string | null; since: string }
+export interface FriendRequestEntry extends UserRef { at: string }
+export interface FriendsResponse {
+  friends: FriendEntry[]
+  incoming: FriendRequestEntry[]
+  outgoing: FriendRequestEntry[]
+}
+export interface FriendRequestResponse { status: 'pending' | 'accepted'; user: UserRef }
+
+// 11. Chat
+export interface ChatMessageInfo {
+  id: string
+  threadId: string
+  sender: { userId: string; username: string }
+  text: string
+  at: string
+}
+export interface ChatThreadInfo {
+  id: string
+  kind: 'dm' | 'game' | 'opponent'
+  gameId: string | null
+  // 'opponent': the per-opponent thread (open-lobby revision)
+  members: { userId: string; username: string }[]
+  lastMessage: ChatMessageInfo | null
+  unread: number
+}
+export interface ThreadsResponse { threads: ChatThreadInfo[]; nextCursor: string | null }
+export interface MessagesResponse { messages: ChatMessageInfo[]; nextBefore: string | null }
+
+// 12 + 16. Offline import
+export type OfflineReason =
+  | 'checkmate' | 'stalemate' | 'insufficient_material' | 'threefold' | 'fifty_move'
+  | 'resign' | 'max_plies'
+export interface OfflineGame {
+  clientId: string
+  playedAt: string
+  color: Color
+  engineLevel: number
+  result: GameResult
+  reason: OfflineReason
+  pgn: string
+  moves: string[]
+}
+export interface ImportResult {
+  clientId: string
+  status: 'created' | 'duplicate' | 'invalid'
+  gameId: string | null
+  error?: string
+}
+export interface ImportResponse { results: ImportResult[] }
+
+// 13 + 14. Events
+export type EventType =
+  | 'game.move' | 'game.over' | 'game.draw_offer' | 'game.draw_declined' | 'game.clock'
+  | 'match.found' | 'match.cancelled' | 'challenge.received'
+  | 'friend.request' | 'friend.accepted' | 'friend.removed'
+  | 'chat.message' | 'presence.changed'
+  | 'offer.received' | 'offer.cancelled'
+
+export interface GameMovePayload {
+  gameId: string
+  move: MoveInfo
+  by: Color
+  fen: string
+  plyCount: number
+  turn: Color
+  inCheck: boolean
+  status: GameStatus
+  drawOffer: Color | null
+  clock: ClockState | null
+  moveDeadlineAt?: string | null
+}
+export interface GameOverPayload {
+  gameId: string
+  status: 'finished' | 'aborted'
+  result: GameResult | null
+  reason: GameReason
+  ratingDeltaWhite: number | null
+  ratingDeltaBlack: number | null
+  whiteRating: number | null
+  blackRating: number | null
+  clock: ClockState | null
+}
+export interface MatchFoundPayload {
+  gameId: string
+  color: Color
+  opponent: UserRef
+  timeControl: TimeControl
+  via: 'queue' | 'challenge' | 'offer'
+}
+export type MatchCancelReason = 'left' | 'stale' | 'banned' | 'replaced' | 'matched'
+export interface ChallengePayload {
+  gameId: string
+  from: UserRef
+  timeControl: TimeControl
+  yourColor: Color
+  expiresAt: string
+}
+export interface ChatMessagePayload {
+  threadId: string
+  kind: 'dm' | 'game' | 'opponent'
+  gameId: string | null
+  message: ChatMessageInfo
+}
+
+export interface EventPayloads {
+  'game.move': GameMovePayload
+  'game.over': GameOverPayload
+  'game.draw_offer': { gameId: string; by: Color }
+  'game.draw_declined': { gameId: string; by: Color }
+  'game.clock': { gameId: string; clock: ClockState }
+  'match.found': MatchFoundPayload
+  'match.cancelled': { reason: MatchCancelReason }
+  'challenge.received': ChallengePayload
+  'friend.request': { from: UserRef }
+  'friend.accepted': { user: UserRef }
+  'friend.removed': { userId: string }
+  'chat.message': ChatMessagePayload
+  'presence.changed': { userId: string; username: string; online: boolean; lastSeenAt: string }
+  'offer.received': { offer: Offer }
+  'offer.cancelled': { offerId: string; reason: OfferCancelReason }
+}
+
+export interface GameEventEnvelope<T extends EventType = EventType> {
+  seq: number
+  type: T
+  at: string
+  gameId: string | null
+  payload: EventPayloads[T]
+}
+
+// A known event, narrowed on `type`. The server may send types not listed
+// here (1: unknown types MUST be ignored), so a received envelope is read as
+// `AnyEvent | { type: string }`.
+export type AnyEvent = { [T in EventType]: GameEventEnvelope<T> }[EventType]
+
+export interface EventsResponse {
+  events: GameEventEnvelope[]
+  seq: number
+  more: boolean
+  serverTime: number
+}
