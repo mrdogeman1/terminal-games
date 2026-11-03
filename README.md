@@ -1,7 +1,11 @@
 # terminal-games
 
-A Claude Code mod: a "Games" pane beside the chat. Play chess offline against an engine, or sign in
-to play online (open lobby with rating ranges and time controls, friends, chat).
+A Claude Code mod: a "Games" pane beside the chat.
+
+- **Chess online** against other players: an open lobby with rating ranges and time controls,
+  friends and player-to-player chat (needs an account, see below).
+- **Chess offline** against the computer, ten levels.
+- **Arcade games** offline: Snake, Pong, Bricks and Dodge.
 
 ## Install
 
@@ -19,7 +23,13 @@ The pane opens when a session starts. The `/games` command:
 | `/games status` | Server, account and where offline games are kept |
 | `/games sync` | Upload offline games that are not on the server yet |
 
-Your sign-in is kept in Claude Code's plugin store, never in a file.
+## Logging in
+
+Offline games need no account. To play online, run `/games login`: the mod shows a short code and
+a link; open the link, sign in (or create an account) on the server and approve the code. Your
+sign-in is kept in Claude Code's plugin store, never in a file.
+
+The production server is https://arcade.skywars.fun. You can also play there in the browser.
 
 ## Offline games
 
@@ -36,13 +46,15 @@ files stay where they are.
 
 Plugin options (`/plugin`, then terminal-games, then configure):
 
-- `serverUrl`: the game server, default `https://arcade.skywars.fun` (also used when empty). Set it to e.g. `http://localhost:3000` for a local dev server.
+- `serverUrl`: the game server, default `https://arcade.skywars.fun` (also used when empty). Set it
+  to e.g. `http://localhost:3000` for a local dev server.
 - `dataDir`: folder for offline games instead of the default above.
 
 ## Stockfish (optional)
 
-Put a Stockfish binary in `stockfish/` (see `stockfish/README.md`) for a stronger engine. Without
-it the built-in engine plays. Stockfish is GPLv3 (`stockfish/COPYING`).
+Offline chess uses Stockfish when it is there, and the mod's own small engine otherwise. Stockfish
+is not bundled: it is GPLv3 (`stockfish/COPYING`) and about 100 MB. Download it yourself and put
+the binary in `stockfish/` as described in `stockfish/README.md`.
 
 ## Development
 
@@ -52,9 +64,14 @@ claude plugin test .
 tsc -p .
 ```
 
-`tsc -p .` needs the types in `.claude-plugin/types/`, which Claude Code writes there once it
-has loaded the mod (for example with `claude --plugin-dir <this folder>`).
+CI runs the first two on every push and pull request. `tsc -p .` needs the types in
+`.claude-plugin/types/`, which Claude Code writes there once it has loaded the mod (for example
+with `claude --plugin-dir <this folder>`).
+
+The mod talks to the server over HTTP only. `docs/PROTOCOL.md` is the client contract: every
+endpoint, event and error the mod relies on. It is a copy of the server's protocol document;
+protocol changes land there first.
 
 ## License
 
-MIT, see `LICENSE`.
+MIT, see `LICENSE`. Stockfish, if you add it, is GPLv3.

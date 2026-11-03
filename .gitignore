@@ -3,6 +3,8 @@
 # Stockfish binary (GPLv3, ~100 MB, downloaded separately; see stockfish/README.md)
 stockfish/*.exe
 stockfish/*.zip
+stockfish/stockfish
+stockfish/stockfish-*
 node_modules/
 *.log
 .DS_Store
