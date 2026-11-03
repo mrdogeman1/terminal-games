@@ -69,7 +69,7 @@ const env = <T extends GameEventEnvelope['type']>(seq: number, type: T, payload:
   ({ seq, type, at: iso(T0), gameId: (payload as { gameId?: string }).gameId ?? null, payload }) as GameEventEnvelope
 
 const ME: MeResponse = {
-  user: { id: 'me', username: 'luc', rating: 1214, role: 'user', createdAt: '' },
+  user: { id: 'me', username: 'luc', rating: 1214, role: 'USER', createdAt: '' },
   eventSeq: 90,
   activeGameIds: ['g1', 'g2'],
   queue: null,

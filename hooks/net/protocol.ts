@@ -148,7 +148,7 @@ export interface LogoutResponse { ok: true }
 
 // 7. Account
 export interface MeResponse {
-  user: { id: string; username: string; rating: number; role: 'user' | 'admin'; createdAt: string }
+  user: { id: string; username: string; rating: number; role: 'USER' | 'MODERATOR' | 'ADMIN'; createdAt: string }
   eventSeq: number
   activeGameIds: string[]
   queue: LobbyEntry | null

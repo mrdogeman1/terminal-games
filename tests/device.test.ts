@@ -15,7 +15,7 @@ const CODE: DeviceCodeResponse = {
   interval: 5,
 }
 const ME = {
-  user: { id: 'cm3u1', username: 'luc', rating: 1214, role: 'user', createdAt: '' },
+  user: { id: 'cm3u1', username: 'luc', rating: 1214, role: 'USER', createdAt: '' },
   eventSeq: 48211,
   activeGameIds: [],
   queue: null,
