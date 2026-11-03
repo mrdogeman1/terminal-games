@@ -102,7 +102,7 @@ const world = (on: any, tokenReplies: Reply[]) => {
 
 const paneText = async ($: any) => {
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  const texts = (await ui.findAll({ type: 'Text' })).map((t: { text: string }) => t.text).join('\n')
+  const texts = (await ui.findAll({ type: 'Text', in: 'view' })).map((t: { text: string }) => t.text).join('\n')
   await ui.unmount()
   return texts
 }
@@ -142,7 +142,11 @@ test('/games login: code in the pane and a toast, approval, signed in, offline g
 
   // The person asks to open the page: one argv, no shell.
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'open-login' })
+  // The row under the code: the URL, then [open].
+  const x = `${SERVER}/device?user_code=WDJB-MJHT`.length + 2
+  await ui.pointer({ type: 'down', x, y: 2, in: 'view' })
+  await ui.pointer({ type: 'up', x, y: 2, in: 'view' })
+  await w.clock.settle()
   await ui.unmount()
   expect(w.runs).toEqual([['rundll32', 'url.dll,FileProtocolHandler', `${SERVER}/device?user_code=WDJB-MJHT`]])
 
@@ -153,6 +157,7 @@ test('/games login: code in the pane and a toast, approval, signed in, offline g
   text = await paneText($)
   expect(text).toMatch(/Signed in as luc \(1214\)/)
   expect(text).toMatch(/Offline games 1$/m)
+  expect(text).toMatch(/Online games 0/)
   expect(w.toasts).toContain('Signed in as luc.')
   expect(w.imports.length).toBe(1)
   const me = w.server.sent.find(s => s.path === '/api/mod/me')

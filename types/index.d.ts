@@ -1,6 +1,6 @@
-// terminal-games (placeholder name, see README): the values the mod keeps in $.state (its contract). The
-// online mirror's own types live in hooks/online/reducer.ts; here it is kept
-// as plain JSON data.
+// terminal-games: the values the mod keeps in $.state (its contract). The
+// Client view's props are in hooks/view-types.ts, the online mirror's types
+// in hooks/online/reducer.ts.
 
 export type NetPhase = 'starting' | 'signed-out' | 'signing-in' | 'signed-in' | 'unreachable' | 'upgrade'
 
@@ -22,6 +22,9 @@ export type NetView = {
   message: string | null
   offline: { files: number; pending: number }
   online: { games: number; offersIn: number; offersOut: number; isQueued: boolean }
+  // Bumped when anything else the pane draws changed (the online lobby,
+  // a running clock): reading the atom redraws the pane.
+  rev: number
 }
 
 declare module 'claude-code' {
