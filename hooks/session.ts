@@ -95,7 +95,7 @@ export function createSession(deps: SessionDeps) {
         void deps.setView(v => ({
           ...v,
           phase: 'upgrade',
-          message: `This mod is too old for the server${error.minVersion ? ` (needs ${error.minVersion})` : ''}. Run /plugin update claude-games.`,
+          message: `This mod is too old for the server${error.minVersion ? ` (needs ${error.minVersion})` : ''}. Run /plugin update terminal-games.`,
         }))
       },
       onTokenRotated: token => {

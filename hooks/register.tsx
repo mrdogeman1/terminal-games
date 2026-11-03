@@ -8,12 +8,12 @@ import { resolveDataDir } from './offline/store'
 import { createSession, initialView } from './session'
 import type { Session } from './session'
 
-// claude-games: the pane, the /games command and the online session. The
+// terminal-games: the pane, the /games command and the online session. The
 // arcade and the chess board come with the port of the agents-panel games;
 // until then the pane shows the account and sync state.
 
 const PANE = 'claude-games'
-const TITLE = 'Claude Games'
+const TITLE = 'Games'
 
 // Bump the tag when NetView's fields change.
 const net = atom({ plugin: 'terminal-games', key: 'net' } as const, initialView(''), { shape: 'net-1' })
@@ -41,7 +41,7 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'games',
-      description: 'Claude Games: open the pane, or login / logout / status / sync',
+      description: 'Games: open the pane, or login / logout / status / sync',
       argumentHint: '[login|logout|status|sync]',
     })
     session?.stop()
@@ -95,11 +95,11 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'games' }, async ($, e) => {
     const s = session
     const arg = e.args.trim().toLowerCase()
-    if (!s) return { text: 'Claude Games is still starting; try again in a moment.' }
+    if (!s) return { text: 'Games is still starting; try again in a moment.' }
     switch (arg) {
       case '':
         await $.ui.open({ id: PANE, title: TITLE })
-        return { text: 'Claude Games pane opened.' }
+        return { text: 'Games pane opened.' }
       case 'login':
         void $.ui.open({ id: PANE, title: TITLE })
         return { text: await s.login() }
@@ -132,7 +132,7 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Text bold>Claude Games</Text>
+        <Text bold>Games</Text>
         <Text>{who}</Text>
         {v.login && (
           <Box flexDirection="column" marginTop={1}>
