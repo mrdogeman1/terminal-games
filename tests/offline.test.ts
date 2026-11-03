@@ -38,7 +38,7 @@ test('one readable JSON file per game, named by time and clientId, read back the
   expect(host.files[path]).not.toMatch(/token|Bearer/)
   expect(await store.read(path)).toEqual(g)
   expect((await store.list()).map(s => s.game)).toEqual([g])
-  expect(g.pgn).toMatch(/^\[Event "Claude Games offline"\]\n\[Site "Claude Code"\]\n\[Date "2026\.11\.02"\]\n\[White "You"\]\n\[Black "Engine level 4"\]\n\[Result "1-0"\]\n\n1\. e4/)
+  expect(g.pgn).toMatch(/^\[Event "Terminal Games offline"\]\n\[Site "Claude Code"\]\n\[Date "2026\.11\.02"\]\n\[White "You"\]\n\[Black "Engine level 4"\]\n\[Result "1-0"\]\n\n1\. e4/)
   expect(g.pgn.endsWith('Qxf7# 1-0')).toBe(true)
 })
 

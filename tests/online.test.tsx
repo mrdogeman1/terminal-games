@@ -250,6 +250,7 @@ test('online: lobby, queue, accept an offer, move on the board, chat, resign', a
   // Resign: the result with the rating change.
   await press(ui, w, '[resign]', /resign/)
   expect(await text(ui)).toMatch(/You lost · resign \(-12\)/)
+  expect((await text(ui)).match(/You lost · resign/g)?.length).toBe(1)
   await ui.unmount()
 })
 

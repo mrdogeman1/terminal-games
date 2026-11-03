@@ -37,7 +37,7 @@ const GAME_FILE = {
   engineLevel: 4,
   result: '1-0',
   reason: 'checkmate',
-  pgn: '[Event "Claude Games offline"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0',
+  pgn: '[Event "Terminal Games offline"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0',
   moves: ['e2e4', 'e7e5', 'd1h5', 'b8c6', 'f1c4', 'g8f6', 'h5f7'],
 }
 const DATA = 'C:/Users/t/.claude/terminal-games/games'

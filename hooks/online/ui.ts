@@ -196,8 +196,6 @@ const gameRows = (s: OnlineState, g: OnlineGame, width: number): ViewRow[] => {
       buttons.push(seg('Draw offered, waiting · ', { dim: true }))
     }
     if (st.canResign) buttons.push(btn('resign', 'resign'), seg(' '))
-  } else {
-    buttons.push(seg(`${resultText(st)} · `, { b: true }))
   }
   buttons.push(btn('lobby', 'back'))
   rows.push(...wrap(buttons, width))

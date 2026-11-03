@@ -64,7 +64,7 @@ export const offlinePgn = (
   const engine = `Engine level ${game.engineLevel}`
   const [white, black] = game.color === 'white' ? ['You', engine] : [engine, 'You']
   const headers = [
-    ['Event', 'Claude Games offline'],
+    ['Event', 'Terminal Games offline'],
     ['Site', 'Claude Code'],
     ['Date', date],
     ['White', white],
