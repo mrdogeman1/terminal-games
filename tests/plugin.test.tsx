@@ -46,8 +46,14 @@ const world = (on: any, tokenReplies: Reply[]) => {
   const files: Record<string, string> = { [`${DATA}/20261102-201403-5d0f6c8e.json`]: JSON.stringify(GAME_FILE, null, 2) }
   const toasts: string[] = []
   // The engine hands paths on in the platform's spelling (backslashes on
-  // Windows); the fake keeps forward slashes.
-  const norm = (p: string) => p.replace(/\\/g, '/')
+  // Windows); the fake keeps forward slashes. C:/Users/t is not absolute on
+  // Linux, so the engine resolves it under the cwd first: the fake keys on
+  // the part from C:/Users/t on.
+  const norm = (p: string) => {
+    const s = p.replace(/\\/g, '/')
+    const at = s.indexOf('C:/Users/t/')
+    return at > 0 ? s.slice(at) : s
+  }
   const runs: string[][] = []
   const clock = mock.clock(on, { now: 1_000_000 })
   mock.store(on)

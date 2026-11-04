@@ -91,7 +91,13 @@ const ENTRY = {
 const world = (on: any, store: Record<string, unknown> = {}) => {
   const files: Record<string, string> = {}
   const toasts: string[] = []
-  const norm = (p: string) => p.replace(/\\/g, '/')
+  // C:/Users/t is not absolute on Linux, so the engine resolves it under the
+  // cwd first: the fake keys on the part from C:/Users/t on.
+  const norm = (p: string) => {
+    const s = p.replace(/\\/g, '/')
+    const at = s.indexOf('C:/Users/t/')
+    return at > 0 ? s.slice(at) : s
+  }
   const clock = mock.clock(on, { now: 1_000_000 })
   mock.store(on, {
     ...store,
